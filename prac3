@@ -1,0 +1,239 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <set>
+#include <cctype>
+
+using namespace std;
+
+struct Lexeme
+{
+    string category;
+    string value;
+};
+
+struct Symbol
+{
+    string identifier;
+};
+
+class Lexer
+{
+private:
+    vector<Lexeme> lexemes;
+    vector<Symbol> symbolTable;
+    set<string> reservedWords = {"int", "printf", "scanf", "char", "return", "void", "struct", "long", "float", "double"};
+    set<char> operators = {'+', '-', '*', '/', '=', '<', '>', '!', '&', '|'};
+    set<char> delimiters = {',', ';', '(', ')', '{', '}', '[', ']'};
+
+    bool isReservedWord(const string &word)
+    {
+        return reservedWords.count(word) > 0;
+    }
+
+    bool isOperator(char ch)
+    {
+        return operators.count(ch) > 0;
+    }
+
+    bool isDelimiter(char ch)
+    {
+        return delimiters.count(ch) > 0;
+    }
+
+    void addSymbol(const string &name)
+    {
+        if (name == "main") return;
+
+        for (const auto &sym : symbolTable)
+        {
+            if (sym.identifier == name)
+                return;
+        }
+        symbolTable.push_back({name});
+    }
+
+    void reportError(const string &token)
+    {
+        cout << "Error: Invalid token \"" << token << "\"\n";
+    }
+
+public:
+    void removeComments(const string &code, string &codeWithoutComments)
+    {
+        size_t i = 0;
+        while (i < code.size())
+        {
+            if (code[i] == '/' && code[i + 1] == '/')
+            {
+                while (i < code.size() && code[i] != '\n') i++;
+            }
+            else if (code[i] == '/' && code[i + 1] == '*')
+            {
+                i += 2;
+                while (i < code.size() && !(code[i] == '*' && code[i + 1] == '/')) i++;
+                i += 2;
+            }
+            else
+            {
+                codeWithoutComments += code[i++];
+            }
+        }
+    }
+
+    void analyze(const string &code)
+    {
+        string temp;
+        size_t i = 0;
+
+        while (i < code.size())
+        {
+            if (isspace(code[i]))
+            {
+                i++;
+                continue;
+            }
+
+          
+            if (isalpha(code[i]) || code[i] == '_')
+            {
+                temp.clear();
+                while (i < code.size() && (isalnum(code[i]) || code[i] == '_'))
+                {
+                    temp += code[i++];
+                }
+
+                if (isReservedWord(temp))
+                {
+                    lexemes.push_back({"Keyword", temp});
+                }
+                else
+                {
+                    lexemes.push_back({"Identifier", temp});
+                    addSymbol(temp);
+                }
+                continue;
+            }
+
+            
+            if (isdigit(code[i]))
+            {
+                temp.clear();
+                while (i < code.size() && isdigit(code[i]))
+                {
+                    temp += code[i++];
+                }
+
+                if (i < code.size() && isalpha(code[i]))
+                {
+                    while (i < code.size() && (isalnum(code[i]) || code[i] == '_'))
+                    {
+                        temp += code[i++];
+                    }
+                    reportError(temp);
+                }
+                else
+                {
+                    lexemes.push_back({"Constant", temp});
+                }
+                continue;
+            }
+
+           
+            if (code[i] == '\'' || code[i] == '\"')
+            {
+                char quote = code[i++];
+                temp = quote;
+
+                while (i < code.size() && code[i] != quote)
+                {
+                    temp += code[i++];
+                }
+
+                if (i < code.size() && code[i] == quote)
+                {
+                    temp += code[i++];
+                    lexemes.push_back({"Literal", temp});
+                }
+                else
+                {
+                    reportError(temp);
+                }
+                continue;
+            }
+
+          
+            if (isOperator(code[i]))
+            {
+                lexemes.push_back({"Operator", string(1, code[i])});
+                i++;
+                continue;
+            }
+
+            
+            if (isDelimiter(code[i]))
+            {
+                lexemes.push_back({"Delimiter", string(1, code[i])});
+                i++;
+                continue;
+            }
+
+            
+            temp.clear();
+            while (i < code.size() && !isspace(code[i]) && !isOperator(code[i]) && !isDelimiter(code[i]))
+            {
+                temp += code[i++];
+            }
+            reportError(temp);
+        }
+    }
+
+    void printLexemes()
+    {
+        cout << "Lexemes:\n";
+        for (const auto &lex : lexemes)
+        {
+            cout << lex.category << ": " << lex.value << endl;
+        }
+    }
+
+    void printSymbolTable()
+    {
+        cout << "\nSymbol Table:\n";
+        for (size_t i = 0; i < symbolTable.size(); i++)
+        {
+            cout << i + 1 << ") " << symbolTable[i].identifier << endl;
+        }
+    }
+};
+
+int main()
+{
+    string fileName, code, codeWithoutComments;
+    ifstream file;
+
+    cout << "Enter the file name: ";
+    cin >> fileName;
+
+    file.open(fileName);
+    if (!file.is_open())
+    {
+        cerr << "Error: Cannot open file " << fileName << endl;
+        return 1;
+    }
+
+    code.assign((istreambuf_iterator<char>(file)), istreambuf_iterator<char>());
+    file.close();
+
+    Lexer lexer;
+
+    lexer.removeComments(code, codeWithoutComments);
+    lexer.analyze(codeWithoutComments);
+    lexer.printLexemes();
+    lexer.printSymbolTable();
+
+    return 0;
+}
+
+
